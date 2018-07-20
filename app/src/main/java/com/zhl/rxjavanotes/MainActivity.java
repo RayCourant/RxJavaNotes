@@ -1,12 +1,22 @@
 package com.zhl.rxjavanotes;
 
 import android.os.Bundle;
+import android.os.SystemClock;
 import android.support.v7.app.AppCompatActivity;
 import android.util.Log;
+import android.view.View;
+import android.widget.TextView;
+
+import org.reactivestreams.Subscriber;
+import org.reactivestreams.Subscription;
 
 import java.util.ArrayList;
 import java.util.concurrent.TimeUnit;
 
+import io.reactivex.BackpressureStrategy;
+import io.reactivex.Flowable;
+import io.reactivex.FlowableEmitter;
+import io.reactivex.FlowableOnSubscribe;
 import io.reactivex.Observable;
 import io.reactivex.ObservableEmitter;
 import io.reactivex.ObservableOnSubscribe;
@@ -21,14 +31,112 @@ import io.reactivex.functions.Consumer;
 import io.reactivex.functions.Function;
 import io.reactivex.schedulers.Schedulers;
 
-public class MainActivity extends AppCompatActivity {
+public class MainActivity extends AppCompatActivity implements View.OnClickListener {
     private static final String TAG = "MainActivity";
     private CompositeDisposable mCompositeDisposable;
+    private TextView mTvStart;
+    private TextView mTvRequest;
+    private Subscription mSubscription;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+        initView();
+        mCompositeDisposable = new CompositeDisposable();
+        mTvStart.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                sample8();
+            }
+        });
+
+        mTvRequest.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                mSubscription.request(128);
+            }
+        });
+    }
+
+    /**
+     *
+     */
+    private void sample8() {
+        Flowable.create(new FlowableOnSubscribe<Integer>() {
+            @Override
+            public void subscribe(FlowableEmitter<Integer> e) throws Exception {
+                /*Log.d(TAG, "subscribe: emit1");
+                e.onNext(1);
+                Log.d(TAG, "subscribe: emit2");
+                e.onNext(2);
+                Log.d(TAG, "subscribe: emit3");
+                e.onNext(3);
+                Log.d(TAG, "subscribe: emit4");
+                e.onNext(4);
+                Log.d(TAG, "subscribe: emit onComplete");
+                e.onComplete();*/
+                for (int i = 0;i < 10000 ; i++) {
+//                    Log.d(TAG, "subscribe: emit" + i);
+                    SystemClock.sleep(100);
+                    e.onNext(i);
+                }
+            }
+        }, BackpressureStrategy.LATEST)
+                .subscribeOn(Schedulers.io())
+                .observeOn(AndroidSchedulers.mainThread())
+                .subscribe(new Subscriber<Integer>() {
+                    @Override
+                    public void onSubscribe(Subscription s) {
+                        Log.d(TAG, "onSubscribe: ");
+                        mSubscription = s;
+                        s.request(128);
+                    }
+
+                    @Override
+                    public void onNext(Integer i) {
+                        Log.d(TAG, "onNext: " + i);
+                    }
+
+                    @Override
+                    public void onError(Throwable t) {
+                        Log.d(TAG, "onError: " + t);
+                    }
+
+                    @Override
+                    public void onComplete() {
+                        Log.d(TAG, "onComplete: ");
+                    }
+                });
+    }
+
+    /**
+     * Backpressure
+     */
+    private void sample7() {
+        Observable.create(new ObservableOnSubscribe<Integer>() {
+            @Override
+            public void subscribe(ObservableEmitter<Integer> e) throws Exception {
+                for (int i = 0; ; i++) {
+                    e.onNext(i);
+                }
+            }
+        })
+                .subscribeOn(Schedulers.io())
+//                .filter(new Predicate<Integer>() {
+//                    @Override
+//                    public boolean test(Integer integer) throws Exception {
+//                        return integer % 1000 == 0;
+//                    }
+//                })
+                .sample(2, TimeUnit.SECONDS)
+                .observeOn(AndroidSchedulers.mainThread())
+                .subscribe(new Consumer<Integer>() {
+                    @Override
+                    public void accept(Integer integer) throws Exception {
+                        Log.d(TAG, "accept: " + integer);
+                    }
+                });
     }
 
     /**
@@ -262,5 +370,15 @@ public class MainActivity extends AppCompatActivity {
     protected void onDestroy() {
         mCompositeDisposable.dispose();
         super.onDestroy();
+    }
+
+    @Override
+    public void onClick(View v) {
+
+    }
+
+    private void initView() {
+        mTvStart = (TextView) findViewById(R.id.tv_start);
+        mTvRequest = (TextView) findViewById(R.id.tv_request);
     }
 }
